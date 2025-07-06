@@ -24,3 +24,5 @@ jobs:
           event: push
           branch: ${{ inputs.version-tag }}
           use_unzip: true
+      - name: Debug artifacts
+        run: ls -lRa
