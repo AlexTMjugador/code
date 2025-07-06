@@ -8,6 +8,7 @@ on:
         required: true
       release-notes:
         description: Release notes to include in the Tauri version manifest
+        default: A new release of the Modrinth App is available!
         type: string
         required: true
 
@@ -19,8 +20,62 @@ jobs:
       - name: 📥 Download Modrinth App artifacts
         uses: dawidd6/action-download-artifact@v11
         with:
-          workflow: theseus-build.yml
+          workflow: theseus-release.yml
           workflow_conclusion: success
           event: push
           branch: ${{ inputs.version-tag }}
+          repo: modrinth/code
           use_unzip: true
+      - name: Debug artifacts
+        run: ls -lRa
+      - name: Generate version manifest
+        run: |
+          # Reference: https://tauri.app/plugin/updater/#server-support
+          jq -nc \
+            --arg versionTag "$VERSION_TAG" \
+            --arg releaseNotes "$RELEASE_NOTES" \
+            --rawfile macOsAarch64UpdateArtifactSignature '/tmp/secrets.log' \
+            --arg macOsAarch64UpdateArtifactUrl "$MACOS_AARCH64_UPDATE_ARTIFACT_URL" \
+            --arg macOsAarch64InstallArtifactUrl "$MACOS_AARCH64_INSTALL_ARTIFACT_URL" \
+            --rawfile macOsX64UpdateArtifactSignature '/tmp/secrets.log' \
+            --arg macOsX64UpdateArtifactUrl "$MACOS_X64_UPDATE_ARTIFACT_URL" \
+            --arg macOsX64InstallArtifactUrl "$MACOS_X64_INSTALL_ARTIFACT_URL" \
+            --rawfile linuxX64UpdateArtifactSignature '/tmp/secrets.log' \
+            --arg linuxX64UpdateArtifactUrl "$LINUX_X64_UPDATE_ARTIFACT_URL" \
+            --arg linuxX64InstallDebArtifactUrl "$LINUX_X64_INSTALL_DEB_ARTIFACT_URL" \
+            --arg linuxX64InstallAppImageArtifactUrl "$LINUX_X64_INSTALL_APPIMAGE_ARTIFACT_URL" \
+            --arg linuxX64InstallRpmArtifactUrl "$LINUX_X64_INSTALL_RPM_ARTIFACT_URL" \
+            --rawfile windowsX64UpdateArtifactSignature '/tmp/secrets.log' \
+            --arg windowsX64UpdateArtifactUrl "$WINDOWS_X64_UPDATE_ARTIFACT_URL" \
+            --arg windowsX64InstallArtifactUrl "$WINDOWS_X64_INSTALL_ARTIFACT_URL" \
+          '{
+            "version": $versionTag,
+            "notes": $releaseNotes,
+            "pub_date": now | todateiso8601,
+            "platforms": {
+              "darwin-aarch64": {
+                "signature": $macOsAarch64UpdateArtifactSignature,
+                "url": $macOsAarch64UpdateArtifactUrl,
+                "install_urls": [$macOsAarch64InstallArtifactUrl]
+              },
+              "darwin-x86_64": {
+                "signature": $macOsX64UpdateArtifactSignature,
+                "url": $macOsX64UpdateArtifactUrl,
+                "install_urls": [$macOsX64InstallArtifactUrl]
+              },
+              "linux-x86_64": {
+                "signature": $linuxX64UpdateArtifactSignature,
+                "url": $linuxX64UpdateArtifactUrl,
+                "install_urls": [
+                  $linuxX64InstallDebArtifactUrl,
+                  $linuxX64InstallAppImageArtifactUrl,
+                  $linuxX64InstallRpmArtifactUrl
+                ]
+              },
+              "windows-x86_64": {
+                "signature": $windowsX64UpdateArtifactSignature,
+                "url": $windowsX64UpdateArtifactUrl,
+                "install_urls": [$windowsX64InstallArtifactUrl]
+              }
+            }
+          }' > updates.json
